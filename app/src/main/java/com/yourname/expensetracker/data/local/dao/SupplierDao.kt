@@ -9,6 +9,9 @@ interface SupplierDao {
     @Query("SELECT * FROM suppliers WHERE profileId = :profileId ORDER BY name ASC")
     fun getSuppliersByProfile(profileId: Long): Flow<List<Supplier>>
 
+    @Query("SELECT * FROM suppliers ORDER BY name ASC")
+    suspend fun getAllSuppliersDirect(): List<Supplier>
+
     @Query("SELECT * FROM suppliers WHERE id = :id")
     suspend fun getSupplierById(id: Long): Supplier?
 

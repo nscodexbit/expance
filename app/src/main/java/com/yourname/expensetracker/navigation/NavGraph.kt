@@ -153,12 +153,15 @@ fun ExpenseTrackerNavHost(
 
         composable(Screen.SavingsGoals.route) {
             SavingsGoalsScreen(
+                onBack = { navController.popBackStack() },
                 onAddGoal = { }
             )
         }
 
         composable(Screen.RecurringTemplates.route) {
-            RecurringTemplatesScreen()
+            RecurringTemplatesScreen(
+                onBack = { navController.popBackStack() }
+            )
         }
 
         composable(

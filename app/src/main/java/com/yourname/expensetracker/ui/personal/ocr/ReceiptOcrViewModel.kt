@@ -4,6 +4,9 @@ import android.content.Context
 import android.net.Uri
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.google.mlkit.vision.common.InputImage
+import com.google.mlkit.vision.text.TextRecognition
+import com.google.mlkit.vision.text.latin.TextRecognizerOptions
 import com.yourname.expensetracker.data.local.SessionManager
 import com.yourname.expensetracker.data.local.entity.Account
 import com.yourname.expensetracker.data.local.entity.Category
@@ -16,7 +19,7 @@ import dagger.hilt.android.lifecycle.HiltViewModel
 import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.launch
-import java.util.regex.Pattern
+import java.util.Locale
 import javax.inject.Inject
 
 data class ReceiptOcrUiState(
@@ -75,20 +78,121 @@ class ReceiptOcrViewModel @Inject constructor(
 
     fun onImageSelected(uri: Uri) {
         _uiState.update { it.copy(imageUri = uri, isScanning = true) }
-        // On-device receipt text parsing simulation
-        viewModelScope.launch {
-            kotlinx.coroutines.delay(800) // Fast on-device parsing simulation
-            val sampleMerchants = listOf("Walmart Supercenter", "Trader Joe's", "Shell Gas Station", "Starbucks Coffee", "Target Express")
-            val sampleAmounts = listOf("42.50", "18.75", "65.20", "8.40", "112.00")
-            val idx = (System.currentTimeMillis() % sampleMerchants.size).toInt()
+        try {
+            val recognizer = TextRecognition.getClient(TextRecognizerOptions.DEFAULT_OPTIONS)
+            val image = InputImage.fromFilePath(context, uri)
+            recognizer.process(image)
+                .addOnSuccessListener { visionText ->
+                    var detectedMerchant = ""
+                    var detectedAmount = ""
+                    val lines = visionText.textBlocks.flatMap { it.lines }.map { it.text.trim() }.filter { it.isNotBlank() }
 
-            _uiState.update {
-                it.copy(
-                    isScanning = false,
-                    merchant = sampleMerchants[idx],
-                    amount = sampleAmounts[idx]
-                )
-            }
+                    // Merchant: take top candidate
+                    for (line in lines.take(4)) {
+                        if (line.length in 3..40 && !line.any { it.isDigit() } && !line.contains("total", ignoreCase = true)) {
+                            detectedMerchant = line
+                            break
+                        }
+                    }
+                    if (detectedMerchant.isBlank() && lines.isNotEmpty()) {
+                        detectedMerchant = lines.first().take(30)
+                    }
+
+                    // Amounts: find price patterns (Total, Grand Total, etc.)
+                    val priceRegex = Regex("""(?:[$₹€£]|total|amt)?\s*([0-9]+[.,][0-9]{2})""", RegexOption.IGNORE_CASE)
+                    var maxAmount = 0.0
+                    for (line in lines) {
+                        val match = priceRegex.find(line)
+                        if (match != null) {
+                            val numStr = match.groupValues[1].replace(",", ".")
+                            val num = numStr.toDoubleOrNull() ?: 0.0
+                            if (num in 0.01..999999.0 && num > maxAmount) {
+                                maxAmount = num
+                            }
+                        }
+                    }
+                    if (maxAmount > 0) {
+                        detectedAmount = String.format(Locale.US, "%.2f", maxAmount)
+                    }
+
+                    _uiState.update {
+                        it.copy(
+                            isScanning = false,
+                            merchant = detectedMerchant.ifBlank { "Receipt Store" },
+                            amount = if (detectedAmount.isNotBlank()) detectedAmount else (it.amount.ifBlank { "0.00" })
+                        )
+                    }
+                }
+                .addOnFailureListener {
+                    _uiState.update {
+                        it.copy(
+                            isScanning = false,
+                            merchant = it.merchant.ifBlank { "Store" },
+                            amount = it.amount.ifBlank { "0.00" }
+                        )
+                    }
+                }
+        } catch (e: Exception) {
+            _uiState.update { it.copy(isScanning = false) }
+        }
+    }
+
+    fun onBitmapCaptured(bitmap: android.graphics.Bitmap) {
+        _uiState.update { it.copy(isScanning = true) }
+        try {
+            val recognizer = TextRecognition.getClient(TextRecognizerOptions.DEFAULT_OPTIONS)
+            val image = InputImage.fromBitmap(bitmap, 0)
+            recognizer.process(image)
+                .addOnSuccessListener { visionText ->
+                    var detectedMerchant = ""
+                    var detectedAmount = ""
+                    val lines = visionText.textBlocks.flatMap { it.lines }.map { it.text.trim() }.filter { it.isNotBlank() }
+
+                    for (line in lines.take(4)) {
+                        if (line.length in 3..40 && !line.any { it.isDigit() } && !line.contains("total", ignoreCase = true)) {
+                            detectedMerchant = line
+                            break
+                        }
+                    }
+                    if (detectedMerchant.isBlank() && lines.isNotEmpty()) {
+                        detectedMerchant = lines.first().take(30)
+                    }
+
+                    val priceRegex = Regex("""(?:[$₹€£]|total|amt)?\s*([0-9]+[.,][0-9]{2})""", RegexOption.IGNORE_CASE)
+                    var maxAmount = 0.0
+                    for (line in lines) {
+                        val match = priceRegex.find(line)
+                        if (match != null) {
+                            val numStr = match.groupValues[1].replace(",", ".")
+                            val num = numStr.toDoubleOrNull() ?: 0.0
+                            if (num in 0.01..999999.0 && num > maxAmount) {
+                                maxAmount = num
+                            }
+                        }
+                    }
+                    if (maxAmount > 0) {
+                        detectedAmount = String.format(Locale.US, "%.2f", maxAmount)
+                    }
+
+                    _uiState.update {
+                        it.copy(
+                            isScanning = false,
+                            merchant = detectedMerchant.ifBlank { "Receipt Store" },
+                            amount = if (detectedAmount.isNotBlank()) detectedAmount else (it.amount.ifBlank { "0.00" })
+                        )
+                    }
+                }
+                .addOnFailureListener {
+                    _uiState.update {
+                        it.copy(
+                            isScanning = false,
+                            merchant = it.merchant.ifBlank { "Store" },
+                            amount = it.amount.ifBlank { "0.00" }
+                        )
+                    }
+                }
+        } catch (e: Exception) {
+            _uiState.update { it.copy(isScanning = false) }
         }
     }
 

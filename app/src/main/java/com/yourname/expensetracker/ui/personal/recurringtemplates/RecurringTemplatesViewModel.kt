@@ -8,6 +8,9 @@ import com.yourname.expensetracker.data.local.entity.RecurringTemplate
 import com.yourname.expensetracker.data.repository.RecurringTemplateRepository
 import com.yourname.expensetracker.data.repository.CategoryRepository
 import com.yourname.expensetracker.data.local.entity.Category
+import com.yourname.expensetracker.data.local.entity.Transaction
+import com.yourname.expensetracker.data.local.entity.TransactionType
+import com.yourname.expensetracker.data.repository.TransactionRepository
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.launch
@@ -23,6 +26,7 @@ class RecurringTemplatesViewModel @Inject constructor(
     private val templateRepository: RecurringTemplateRepository,
     private val categoryRepository: CategoryRepository,
     private val accountRepository: com.yourname.expensetracker.data.repository.AccountRepository,
+    private val transactionRepository: TransactionRepository,
     sessionManager: SessionManager
 ) : ViewModel() {
 
@@ -88,6 +92,30 @@ class RecurringTemplatesViewModel @Inject constructor(
     fun deleteTemplate(template: RecurringTemplate) {
         viewModelScope.launch {
             templateRepository.delete(template)
+        }
+    }
+
+    fun executeTemplateNow(template: RecurringTemplate) {
+        viewModelScope.launch {
+            val currentTime = System.currentTimeMillis()
+            val transaction = Transaction(
+                profileId = template.profileId,
+                accountId = template.accountId,
+                categoryId = template.categoryId,
+                type = TransactionType.EXPENSE,
+                amount = template.amount,
+                date = currentTime,
+                note = "${template.label} (Recurring entry)",
+                recurringTemplateId = template.id
+            )
+            transactionRepository.insert(transaction)
+
+            val nextDueDate = when (template.frequency) {
+                Frequency.DAILY -> currentTime + 86_400_000L
+                Frequency.WEEKLY -> currentTime + 604_800_000L
+                Frequency.MONTHLY -> currentTime + 2_592_000_000L
+            }
+            templateRepository.update(template.copy(nextDueDate = nextDueDate))
         }
     }
 }

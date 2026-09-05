@@ -54,4 +54,11 @@ class SavingsGoalsViewModel @Inject constructor(
             goalRepository.delete(goal)
         }
     }
+
+    fun addDeposit(goal: SavingsGoal, amount: Double) {
+        if (amount <= 0) return
+        viewModelScope.launch {
+            goalRepository.update(goal.copy(currentAmount = goal.currentAmount + amount))
+        }
+    }
 }

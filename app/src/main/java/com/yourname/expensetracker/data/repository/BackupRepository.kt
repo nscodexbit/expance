@@ -33,7 +33,8 @@ class BackupRepository @Inject constructor(
     suspend fun createLocalBackup(): Result<File> = withContext(Dispatchers.IO) {
         try {
             val root = JSONObject()
-            root.put("version", 1)
+            root.put("version", 2)
+            root.put("appName", "ExpenseTracker")
             root.put("timestamp", System.currentTimeMillis())
 
             // Export transactions
@@ -41,7 +42,6 @@ class BackupRepository @Inject constructor(
             val txns = database.transactionDao().getAllActiveTransactions()
             for (t in txns) {
                 val obj = JSONObject()
-                obj.put("id", t.id)
                 obj.put("profileId", t.profileId)
                 obj.put("accountId", t.accountId)
                 obj.put("categoryId", t.categoryId)
@@ -52,6 +52,31 @@ class BackupRepository @Inject constructor(
                 txnsArray.put(obj)
             }
             root.put("transactions", txnsArray)
+
+            // Export customers
+            val customersArray = JSONArray()
+            val customers = database.customerDao().getAllCustomersDirect()
+            for (c in customers) {
+                val obj = JSONObject()
+                obj.put("profileId", c.profileId)
+                obj.put("name", c.name)
+                obj.put("phone", c.phone ?: "")
+                obj.put("address", c.address ?: "")
+                customersArray.put(obj)
+            }
+            root.put("customers", customersArray)
+
+            // Export suppliers
+            val suppliersArray = JSONArray()
+            val suppliers = database.supplierDao().getAllSuppliersDirect()
+            for (s in suppliers) {
+                val obj = JSONObject()
+                obj.put("profileId", s.profileId)
+                obj.put("name", s.name)
+                obj.put("phone", s.phone ?: "")
+                suppliersArray.put(obj)
+            }
+            root.put("suppliers", suppliersArray)
 
             // Write to file
             val timestampStr = SimpleDateFormat("yyyyMMdd_HHmmss", Locale.getDefault()).format(Date())
@@ -81,15 +106,16 @@ class BackupRepository @Inject constructor(
     suspend fun restoreFromJson(jsonString: String): Result<Int> = withContext(Dispatchers.IO) {
         try {
             val root = JSONObject(jsonString)
-            val txnsArray = root.optJSONArray("transactions") ?: JSONArray()
             var count = 0
 
+            // Restore transactions
+            val txnsArray = root.optJSONArray("transactions") ?: JSONArray()
             for (i in 0 until txnsArray.length()) {
                 val obj = txnsArray.getJSONObject(i)
                 val txn = com.yourname.expensetracker.data.local.entity.Transaction(
-                    profileId = obj.getLong("profileId"),
-                    accountId = obj.getLong("accountId"),
-                    categoryId = if (obj.isNull("categoryId")) null else obj.getLong("categoryId"),
+                    profileId = obj.optLong("profileId", 1L),
+                    accountId = obj.optLong("accountId", 1L),
+                    categoryId = if (obj.isNull("categoryId")) null else obj.optLong("categoryId"),
                     type = com.yourname.expensetracker.data.local.entity.TransactionType.valueOf(obj.getString("type")),
                     amount = obj.getDouble("amount"),
                     date = obj.getLong("date"),
@@ -97,6 +123,37 @@ class BackupRepository @Inject constructor(
                 )
                 database.transactionDao().insert(txn)
                 count++
+            }
+
+            // Restore customers
+            val customersArray = root.optJSONArray("customers")
+            if (customersArray != null) {
+                for (i in 0 until customersArray.length()) {
+                    val obj = customersArray.getJSONObject(i)
+                    val customer = com.yourname.expensetracker.data.local.entity.Customer(
+                        profileId = obj.optLong("profileId", 1L),
+                        name = obj.getString("name"),
+                        phone = obj.optString("phone").ifBlank { null },
+                        address = obj.optString("address").ifBlank { null }
+                    )
+                    database.customerDao().insert(customer)
+                    count++
+                }
+            }
+
+            // Restore suppliers
+            val suppliersArray = root.optJSONArray("suppliers")
+            if (suppliersArray != null) {
+                for (i in 0 until suppliersArray.length()) {
+                    val obj = suppliersArray.getJSONObject(i)
+                    val supplier = com.yourname.expensetracker.data.local.entity.Supplier(
+                        profileId = obj.optLong("profileId", 1L),
+                        name = obj.getString("name"),
+                        phone = obj.optString("phone").ifBlank { null }
+                    )
+                    database.supplierDao().insert(supplier)
+                    count++
+                }
             }
 
             backupLogDao.insert(
@@ -115,22 +172,6 @@ class BackupRepository @Inject constructor(
                     status = BackupStatus.FAILED
                 )
             )
-            Result.failure(e)
-        }
-    }
-
-    suspend fun simulateDriveBackup(): Result<Boolean> = withContext(Dispatchers.IO) {
-        // Simulates Google Drive sync using signed-in account without server
-        try {
-            backupLogDao.insert(
-                BackupLog(
-                    timestamp = System.currentTimeMillis(),
-                    type = BackupType.DRIVE,
-                    status = BackupStatus.SUCCESS
-                )
-            )
-            Result.success(true)
-        } catch (e: Exception) {
             Result.failure(e)
         }
     }

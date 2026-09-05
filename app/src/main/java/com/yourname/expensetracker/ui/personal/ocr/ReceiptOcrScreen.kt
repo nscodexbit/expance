@@ -39,6 +39,15 @@ fun ReceiptOcrScreen(
         }
     )
 
+    val cameraLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.TakePicturePreview(),
+        onResult = { bitmap ->
+            if (bitmap != null) {
+                viewModel.onBitmapCaptured(bitmap)
+            }
+        }
+    )
+
     Scaffold(
         topBar = {
             TopAppBar(
@@ -65,7 +74,7 @@ fun ReceiptOcrScreen(
                     fontWeight = FontWeight.Bold
                 )
                 Text(
-                    text = "Take a photo or pick a receipt from your gallery. Extracted amounts and merchants can be reviewed and edited before saving.",
+                    text = "Snap a photo with your camera or select an existing receipt image from your gallery. On-device ML Kit OCR instantly reads the merchant and total amount.",
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
@@ -74,60 +83,71 @@ fun ReceiptOcrScreen(
             // Image Picker Button / Preview Card
             item {
                 Card(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .height(180.dp)
-                        .clickable {
-                            photoPickerLauncher.launch(
-                                PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly)
-                            )
-                        },
+                    modifier = Modifier.fillMaxWidth(),
                     shape = RoundedCornerShape(16.dp),
                     colors = CardDefaults.cardColors(
                         containerColor = MaterialTheme.colorScheme.surfaceVariant
                     )
                 ) {
-                    Box(
-                        modifier = Modifier.fillMaxSize(),
-                        contentAlignment = Alignment.Center
+                    Column(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(20.dp),
+                        horizontalAlignment = Alignment.CenterHorizontally
                     ) {
-                        if (state.imageUri == null) {
-                            Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                                Icon(
-                                    Icons.Default.CameraAlt,
-                                    contentDescription = null,
-                                    modifier = Modifier.size(48.dp),
-                                    tint = MaterialTheme.colorScheme.primary
-                                )
-                                Spacer(modifier = Modifier.height(8.dp))
-                                Text(
-                                    "Tap to Pick or Capture Receipt",
-                                    fontWeight = FontWeight.SemiBold,
-                                    color = MaterialTheme.colorScheme.primary
-                                )
-                                Text(
-                                    "Private photo picker (zero permissions needed)",
-                                    style = MaterialTheme.typography.bodySmall,
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                                )
-                            }
-                        } else if (state.isScanning) {
-                            Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                                CircularProgressIndicator()
-                                Spacer(modifier = Modifier.height(12.dp))
-                                Text("Analyzing receipt with on-device OCR...", style = MaterialTheme.typography.bodyMedium)
-                            }
-                        } else {
+                        if (state.isScanning) {
+                            CircularProgressIndicator()
+                            Spacer(modifier = Modifier.height(12.dp))
+                            Text("Analyzing receipt with ML Kit OCR...", style = MaterialTheme.typography.bodyMedium)
+                        } else if (state.merchant.isNotBlank() || state.amount.isNotBlank()) {
                             Row(
-                                modifier = Modifier.padding(16.dp),
+                                modifier = Modifier.fillMaxWidth(),
                                 verticalAlignment = Alignment.CenterVertically
                             ) {
                                 Icon(Icons.Default.CheckCircle, contentDescription = null, tint = Color(0xFF2E7D32), modifier = Modifier.size(36.dp))
                                 Spacer(modifier = Modifier.width(12.dp))
                                 Column {
-                                    Text("Receipt Scanned Successfully", fontWeight = FontWeight.Bold)
-                                    Text("Tap to pick a different receipt", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                                    Text("Text Extracted Successfully", fontWeight = FontWeight.Bold, color = Color(0xFF2E7D32))
+                                    Text("Store: ${state.merchant} • Amount: ₹${state.amount}", style = MaterialTheme.typography.bodySmall)
                                 }
+                            }
+                        } else {
+                            Icon(
+                                Icons.Default.ReceiptLong,
+                                contentDescription = null,
+                                modifier = Modifier.size(48.dp),
+                                tint = MaterialTheme.colorScheme.primary
+                            )
+                            Spacer(modifier = Modifier.height(8.dp))
+                            Text("Capture or Select Receipt", fontWeight = FontWeight.SemiBold, color = MaterialTheme.colorScheme.primary)
+                            Text("Fast on-device text recognition", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        }
+
+                        Spacer(modifier = Modifier.height(16.dp))
+
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.spacedBy(12.dp)
+                        ) {
+                            Button(
+                                onClick = { cameraLauncher.launch(null) },
+                                modifier = Modifier.weight(1f)
+                            ) {
+                                Icon(Icons.Default.CameraAlt, contentDescription = null, modifier = Modifier.size(18.dp))
+                                Spacer(modifier = Modifier.width(6.dp))
+                                Text("Camera")
+                            }
+                            OutlinedButton(
+                                onClick = {
+                                    photoPickerLauncher.launch(
+                                        PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly)
+                                    )
+                                },
+                                modifier = Modifier.weight(1f)
+                            ) {
+                                Icon(Icons.Default.PhotoLibrary, contentDescription = null, modifier = Modifier.size(18.dp))
+                                Spacer(modifier = Modifier.width(6.dp))
+                                Text("Gallery")
                             }
                         }
                     }
