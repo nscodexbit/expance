@@ -33,6 +33,12 @@ class SessionManager @Inject constructor(
         private val KEY_LANGUAGE = stringPreferencesKey("app_language")
         private val KEY_STAFF_ROLE = stringPreferencesKey("active_staff_role")
         private val KEY_STAFF_NAME = stringPreferencesKey("active_staff_name")
+        private val KEY_SHOP_NAME = stringPreferencesKey("shop_name")
+        private val KEY_SHOP_PHONE = stringPreferencesKey("shop_phone")
+        private val KEY_SHOP_ADDRESS = stringPreferencesKey("shop_address")
+        private val KEY_SHOP_GSTIN = stringPreferencesKey("shop_gstin")
+        private val KEY_SHOP_HEADER = stringPreferencesKey("shop_header")
+        private val KEY_SHOP_FOOTER = stringPreferencesKey("shop_footer")
     }
 
     val activeProfileId: Flow<Long?> = context.dataStore.data.map { prefs ->
@@ -80,6 +86,31 @@ class SessionManager @Inject constructor(
 
     val activeStaffName: Flow<String> = context.dataStore.data.map {
         it[KEY_STAFF_NAME] ?: "Owner"
+    }
+
+    val shopName: Flow<String> = context.dataStore.data.map { it[KEY_SHOP_NAME] ?: "My Store" }
+    val shopPhone: Flow<String> = context.dataStore.data.map { it[KEY_SHOP_PHONE] ?: "" }
+    val shopAddress: Flow<String> = context.dataStore.data.map { it[KEY_SHOP_ADDRESS] ?: "" }
+    val shopGstin: Flow<String> = context.dataStore.data.map { it[KEY_SHOP_GSTIN] ?: "" }
+    val shopHeader: Flow<String> = context.dataStore.data.map { it[KEY_SHOP_HEADER] ?: "Tax Invoice / Cash Bill" }
+    val shopFooter: Flow<String> = context.dataStore.data.map { it[KEY_SHOP_FOOTER] ?: "Thank you for your business!" }
+
+    suspend fun setShopBranding(
+        name: String,
+        phone: String,
+        address: String,
+        gstin: String,
+        header: String,
+        footer: String
+    ) {
+        context.dataStore.edit {
+            it[KEY_SHOP_NAME] = name
+            it[KEY_SHOP_PHONE] = phone
+            it[KEY_SHOP_ADDRESS] = address
+            it[KEY_SHOP_GSTIN] = gstin
+            it[KEY_SHOP_HEADER] = header
+            it[KEY_SHOP_FOOTER] = footer
+        }
     }
 
     suspend fun setAppLanguage(lang: String) {

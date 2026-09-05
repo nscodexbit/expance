@@ -5,6 +5,7 @@ import androidx.lifecycle.viewModelScope
 import com.yourname.expensetracker.data.local.DataInitializer
 import com.yourname.expensetracker.data.local.SessionManager
 import com.yourname.expensetracker.data.local.entity.Profile
+import com.yourname.expensetracker.data.local.entity.ProfileType
 import com.yourname.expensetracker.data.repository.ProfileRepository
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.*
@@ -23,7 +24,7 @@ class HomeViewModel @Inject constructor(
 
     init {
         viewModelScope.launch {
-            // Guarantee at least one valid profile with accounts and categories exists
+            // Guarantee at least one valid profile exists
             val initialProfileId = dataInitializer.ensureInitialized()
             val initialProfile = profileRepository.getProfileById(initialProfileId)
             if (initialProfile != null) {
@@ -35,6 +36,29 @@ class HomeViewModel @Inject constructor(
                 val profile = profileRepository.getProfileById(resolvedId)
                     ?: profileRepository.getProfileById(dataInitializer.ensureInitialized())
                 _activeProfile.value = profile
+            }
+        }
+    }
+
+    fun switchProfileMode(targetType: ProfileType) {
+        viewModelScope.launch {
+            val allProfiles = profileRepository.getAllProfilesList()
+            var matched = allProfiles.firstOrNull { it.type == targetType }
+            if (matched == null) {
+                val newId = profileRepository.insert(
+                    Profile(
+                        name = if (targetType == ProfileType.SHOP) "My Shop" else "Personal Wallet",
+                        type = targetType,
+                        currency = "INR"
+                    )
+                )
+                dataInitializer.ensureDefaultAccounts(newId, targetType)
+                dataInitializer.ensureDefaultCategories(newId)
+                matched = profileRepository.getProfileById(newId)
+            }
+            if (matched != null) {
+                sessionManager.setActiveProfileId(matched.id)
+                _activeProfile.value = matched
             }
         }
     }

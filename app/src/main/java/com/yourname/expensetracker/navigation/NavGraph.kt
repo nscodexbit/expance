@@ -55,8 +55,12 @@ sealed class Screen(val route: String) {
 
     // Optional Khata & Supplier
     data object Suppliers : Screen("shop/suppliers")
+    data object Khata : Screen("shop/khata")
     data object CustomerDetail : Screen("shop/customer/{customerId}")
     data object SupplierDetail : Screen("shop/supplier/{supplierId}")
+    data object BarcodeScanner : Screen("shop/barcode_scanner")
+    data object Billing : Screen("shop/billing")
+    data object ShopBranding : Screen("settings/shop_branding")
 }
 
 @Composable
@@ -273,6 +277,35 @@ fun ExpenseTrackerNavHost(
             com.yourname.expensetracker.ui.shop.supplier.SupplierDetailScreen(
                 supplierId = supplierId,
                 onBack = { navController.popBackStack() }
+            )
+        }
+
+        composable(Screen.BarcodeScanner.route) {
+            com.yourname.expensetracker.ui.shop.inventory.BarcodeScannerScreen(
+                onProductAdded = { _ -> },
+                onBack = { navController.popBackStack() }
+            )
+        }
+
+        composable(Screen.Billing.route) {
+            com.yourname.expensetracker.ui.shop.billing.BillingScreen(
+                onNavigateToScanner = { navController.navigate(Screen.BarcodeScanner.route) },
+                onBack = { navController.popBackStack() }
+            )
+        }
+
+        composable(Screen.ShopBranding.route) {
+            com.yourname.expensetracker.ui.settings.ShopBrandingSettingsScreen(
+                sessionManager = sessionManager,
+                onBack = { navController.popBackStack() }
+            )
+        }
+
+        composable(Screen.Khata.route) {
+            com.yourname.expensetracker.ui.shop.khata.KhataScreen(
+                onOpenCustomer = { customerId ->
+                    navController.navigate("shop/customer/$customerId")
+                }
             )
         }
     }

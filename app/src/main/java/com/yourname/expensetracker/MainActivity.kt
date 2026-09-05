@@ -1,7 +1,7 @@
 package com.yourname.expensetracker
 
 import android.os.Bundle
-import androidx.activity.ComponentActivity
+import androidx.fragment.app.FragmentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.compose.foundation.layout.fillMaxSize
@@ -15,7 +15,7 @@ import com.yourname.expensetracker.ui.theme.ExpenseTrackerTheme
 import dagger.hilt.android.AndroidEntryPoint
 import javax.inject.Inject
 
-@AndroidEntryPoint(ComponentActivity::class)
+@AndroidEntryPoint(FragmentActivity::class)
 class MainActivity : Hilt_MainActivity() {
 
     @Inject lateinit var sessionManager: SessionManager
